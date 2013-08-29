@@ -21,18 +21,32 @@ import java.util.Random
 import scala.math.exp
 import spark.util.Vector
 import spark._
+import com.esotericsoftware.kryo.Kryo
 
 /**
  * Logistic regression based classification.
  */
 object SparkLR {
-  val N = 10000  // Number of data points
+  case class DataPoint(x: Vector, y: Double)
+
+  class MyRegistrator extends KryoRegistrator {
+    override def registerClasses(kryo: Kryo) {
+      kryo.setRegistrationRequired(true)
+      
+      kryo.register(classOf[scala.collection.mutable.WrappedArray.ofRef[_]])
+      kryo.register(classOf[java.lang.Class[_]])
+      kryo.register(classOf[DataPoint])
+      kryo.register(classOf[Array[DataPoint]])
+      kryo.register(classOf[Vector])
+      kryo.register(classOf[Array[Double]])
+    }
+  }
+
+  var N = 10000  // Number of data points
   val D = 10   // Numer of dimensions
   val R = 0.7  // Scaling factor
   val ITERATIONS = 5
   val rand = new Random(42)
-
-  case class DataPoint(x: Vector, y: Double)
 
   def generateData = {
     def generatePoint(i: Int) = {
@@ -45,12 +59,17 @@ object SparkLR {
 
   def main(args: Array[String]) {
     if (args.length == 0) {
-      System.err.println("Usage: SparkLR <master> [<slices>]")
+      System.err.println("Usage: SparkLR <master> [<slices> [<points>]]")
       System.exit(1)
     }
+
+    System.setProperty("spark.serializer", "spark.KryoSerializer")
+    System.setProperty("spark.kryo.registrator", "spark.examples.SparkLR$MyRegistrator")
     val sc = new SparkContext(args(0), "SparkLR",
       System.getenv("SPARK_HOME"), Seq(System.getenv("SPARK_EXAMPLES_JAR")))
+
     val numSlices = if (args.length > 1) args(1).toInt else 2
+    if (args.length > 2) N = args(2).toInt
     val points = sc.parallelize(generateData, numSlices).cache()
 
     // Initialize w to a random value
@@ -59,9 +78,10 @@ object SparkLR {
 
     for (i <- 1 to ITERATIONS) {
       println("On iteration " + i)
+      val zero = Vector.zeros(D)
       val gradient = points.map { p =>
         (1 / (1 + exp(-p.y * (w dot p.x))) - 1) * p.y * p.x
-      }.reduce(_ + _)
+      }.fold(zero)(_ += _)
       w -= gradient
     }
 
