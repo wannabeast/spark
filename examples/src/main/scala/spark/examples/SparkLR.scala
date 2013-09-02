@@ -80,8 +80,8 @@ object SparkLR {
       println("On iteration " + i)
       val zero = Vector.zeros(D)
       val gradient = points.map { p =>
-        (1 / (1 + exp(-p.y * (w dot p.x))) - 1) * p.y * p.x
-      }.fold(zero)(_ += _)
+        ((1 / (1 + exp(-p.y * (w dot p.x))) - 1) * p.y, p.x)
+      }.aggregate(zero)((sum,v) => sum saxpy (v._1,v._2), _ += _)
       w -= gradient
     }
 

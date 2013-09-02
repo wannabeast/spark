@@ -83,6 +83,22 @@ class Vector(val elements: Array[Double]) extends Serializable {
 
   def addInPlace(other: Vector) = this +=other
 
+  /**
+   * Perform a saxpy operation: multiply the given vector by the given scalar and add the
+   * result to this vector, returning this vector.
+   */
+  def saxpy(a: Double, x: Vector) = {
+    if (length != x.length)
+      throw new IllegalArgumentException("Vectors of different length")
+    
+    var i = 0
+    while (i < length) {
+      elements(i) += a * x(i)
+      i += 1
+    }
+    this
+  }
+
   def * (scale: Double): Vector = Vector(length, i => this(i) * scale)
 
   def multiply (d: Double) = this * d
